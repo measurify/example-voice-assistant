@@ -1,0 +1,72 @@
+import requests
+import json
+import speech_recognition as sr
+import re
+
+
+login_url = 'http://students.atmosphere.tools/v1/login'
+post_url = 'http://students.atmosphere.tools/v1/measurements'
+get_url = 'http://students.atmosphere.tools/v1/measurements?filter={"thing":"giuseppe.verdi"}&limit=10&page=1'
+
+USERNAME = 'command-recorder-username'
+PASSWORD = 'command-recorder-password'
+THING = 'giuseppe.verdi'
+FEATURE = 'voice-command'
+DEVICE = 'command-recorder'
+
+login_credentials = {'username' : USERNAME, 'password' : PASSWORD}
+
+response = requests.post(login_url, login_credentials)
+print("Login status code: " +str(response.status_code))
+response_json = json.loads(response.text)
+token = response_json['token']
+
+r = sr.Recognizer()
+
+def Main():
+	
+	value = input("Press P to post a new voice-command.\nPress S to show past measurements.\n")
+	if value.upper() == 'P':
+		with sr.Microphone() as source:
+			print("Recording...")
+			audio = r.listen(source)
+			
+			try: 
+				command = r.recognize_google(audio)
+				print("You said; " +command)
+				
+				headers = { 'Content-Type' : 'application/json', 'Authorization' : token}
+				payload = {'thing' : THING, 'feature' : FEATURE, 'device' : DEVICE, 'samples' : [{'values' : ['"' +command+ '"']}]}
+				measurement = requests.post(post_url, data=json.dumps(payload) , headers=headers)
+				print("Post status code: " +str(measurement.status_code))
+				print(measurement.text)
+				#if measurement.status_code != 200:
+					
+					response = requests.post(login_url, login_credentials)
+					print("Login status code: " +str(response.status_code))
+					response_json = json.loads(response.text)
+					token = response_json['token']
+					
+					headers = { 'Content-Type' : 'application/json', 'Authorization' : token}
+					payload = {'thing' : THING, 'feature' : FEATURE, 'device' : DEVICE, 'samples' : [{'values' : ['"' +command+ '"']}]}
+					measurement = requests.post(post_url, data=json.dumps(payload) , headers=headers)
+					print("Post status code: " +str(measurement.status_code))
+				del(command)
+			
+			except sr.UnknownValueError:
+				print("Google Speech Recognition could not understand audio")
+			
+			except sr.RequestError as e:
+				print("Could not request results from Google Speech Recognition service; {0}".format(e))
+	
+	elif value.upper() == 'S':
+		s = requests.get(get_url, headers = {'Content-Type' : 'application/json', 'Authorization' : token})
+		print("Get status code: " +str(s.status_code))
+		print(s.text)
+		print("Past measurements:\n")				
+	
+	else:
+		print("Wrong input.\n")
+	Main()	
+
+Main()
